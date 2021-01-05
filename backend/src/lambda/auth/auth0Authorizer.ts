@@ -1,26 +1,26 @@
 import { CustomAuthorizerEvent, CustomAuthorizerResult } from 'aws-lambda'
 import 'source-map-support/register'
-
 import { verify, decode } from 'jsonwebtoken'
 import { createLogger } from '../../utils/logger'
-import Axios from 'axios'
 import { Jwt } from '../../auth/Jwt'
 import { JwtPayload } from '../../auth/JwtPayload'
+const jwksUrl = 'https://dev-datacamp264.eu.auth0.com/.well-known/jwks.json'
+const jwksClient = require('jwks-rsa');
 
 const logger = createLogger('auth')
+
 
 // TODO: Provide a URL that can be used to download a certificate that can be used
 // to verify JWT token signature.
 // To get this URL you need to go to an Auth0 page -> Show Advanced Settings -> Endpoints -> JSON Web Key Set
-const jwksUrl = '...'
 
 export const handler = async (
   event: CustomAuthorizerEvent
 ): Promise<CustomAuthorizerResult> => {
-  logger.info('Authorizing a user', event.authorizationToken)
+  logger.info('Authorizing a user',{ additional: event.authorizationToken});
   try {
     const jwtToken = await verifyToken(event.authorizationToken)
-    logger.info('User was authorized', jwtToken)
+    logger.info('User was authorized',{ additional: jwtToken});
 
     return {
       principalId: jwtToken.sub,
@@ -54,16 +54,26 @@ export const handler = async (
   }
 }
 
-async function verifyToken(authHeader: string): Promise<JwtPayload> {
+
+export async function verifyToken(authHeader: string): Promise<JwtPayload> {
+
   const token = getToken(authHeader)
   const jwt: Jwt = decode(token, { complete: true }) as Jwt
-
-  // TODO: Implement token verification
-  // You should implement it similarly to how it was implemented for the exercise for the lesson 5
-  // You can read more about how to do this here: https://auth0.com/blog/navigating-rs256-and-jwks/
-  return undefined
+  const client = jwksClient({
+    jwksUri: jwksUrl
+  });
+  const signingKeyObj = await client.getSigningKeyAsync(jwt.header.kid)
+  return await verifyAsyncCall(token,signingKeyObj.getPublicKey())
 }
-
+async function verifyAsyncCall(token: string, signingKey: string):Promise<JwtPayload> {
+  let promise = await new Promise<JwtPayload>((resolve, reject) => {
+    verify(token,signingKey,(err, decoded) => {
+      if(err) return reject(err);
+      resolve(decoded as JwtPayload)
+    } )
+  }).catch(err => {throw err});
+  return promise
+}
 function getToken(authHeader: string): string {
   if (!authHeader) throw new Error('No authentication header')
 
