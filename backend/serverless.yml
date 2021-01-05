@@ -6,6 +6,8 @@ plugins:
   - serverless-aws-documentation
   - serverless-attach-permission-boundary
   - serverless-iam-roles-per-function
+  - serverless-plugin-tracing
+  - serverless-reqvalidator-plugin
 
 
 provider:
@@ -30,6 +32,13 @@ custom:
         version: "1"
         title: "serverless-todo-app"
         description: "Api for udacity lesson 4"
+    models:
+      - name: CreateRequestVal
+        contentType: application/json
+        schema: ${file(models/createRequestVal.json)}
+      - name: UpdateRequestVal
+        contentType: application/json
+        schema: ${file(models/updateRequestVal.json)}
 functions:
 
   HS256Auth:
@@ -44,9 +53,6 @@ functions:
           path: todos
           authorizer: HS256Auth
           cors: true
-          documentation:
-            summary: Get all Todo Items for User
-            description: Get all Todo Items for User
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -62,9 +68,12 @@ functions:
           path: todos
           authorizer: HS256Auth
           cors: true
+          reqValidatorName: RequestBodyValidator
           documentation:
             summary: Create a Todo Item
             description: Create a Todo Item
+            requestModels:
+              'application/json': CreateRequestVal
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -80,9 +89,12 @@ functions:
           path: todos/{todoId}
           authorizer: HS256Auth
           cors: true
+          reqValidatorName: RequestBodyValidator
           documentation:
             summary: Update a Todo Item
             description: Update a Todo Item
+            requestModels:
+              'application/json': UpdateRequestVal
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -101,9 +113,6 @@ functions:
           path: todos/{todoId}
           authorizer: HS256Auth
           cors: true
-          documentation:
-            summary: Delete a Todo Item
-            description: Delete a Todo Item
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -122,9 +131,6 @@ functions:
           path: todos/{todoId}/attachment
           authorizer: HS256Auth
           cors: true
-          documentation:
-            summary: Generate Upload Url
-            description: Generate Upload Url
     iamRoleStatements:
       - Effect: Allow
         Action:
@@ -133,6 +139,14 @@ functions:
         Resource: arn:aws:s3:::${self:provider.environment.TODOS_S3_BUCKET}/*
 resources:
   Resources:
+    RequestBodyValidator:
+      Type: AWS::ApiGateway::RequestValidator
+      Properties:
+        Name: 'request-body-validator'
+        RestApiId:
+          Ref: ApiGatewayRestApi
+        ValidateRequestBody: true
+        ValidateRequestParameters: false
     TodosTable:
       Type: "AWS::DynamoDB::Table"
       Properties:
@@ -180,16 +194,16 @@ resources:
                 - DELETE
                 - HEAD
               MaxAge: 3000
-    BucketPolicy:
-      Type: AWS::S3::BucketPolicy
-      Properties:
-        PolicyDocument:
-          Id: udagramdatadev264Policy
-          Version: '2012-10-17'
-          Statement:
-            - Sid: PublicReadForGetBucketObjects
-              Effect: Allow
-              Principal: '*'
-              Action: 's3:GetObject'
-              Resource: 'arn:aws:s3:::${self:provider.environment.TODOS_S3_BUCKET}/*'
-        Bucket: !Ref AttachmentsBucket
+#    BucketPolicy:
+#      Type: AWS::S3::BucketPolicy
+#      Properties:
+#        PolicyDocument:
+#          Id: udagramdatadev264Policy
+#          Version: '2012-10-17'
+#          Statement:
+#            - Sid: PublicReadForGetBucketObjects
+#              Effect: Allow
+#              Principal: '*'
+#              Action: 's3:GetObject'
+#              Resource: 'arn:aws:s3:::${self:provider.environment.TODOS_S3_BUCKET}/*'
+#        Bucket: !Ref AttachmentsBucket
